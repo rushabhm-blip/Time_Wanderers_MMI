@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Time Wanderers - Interactive Journey</title>
+  <meta name="description" content="Time Wanderers - An epic historical adventure across ancient civilizations. Step inside the circle to begin.">
+  
+  <!-- Google Fonts: Cinzel, Cinzel Decorative, Cormorant Garamond -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800;900&family=Cinzel+Decorative:wght@700&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe Hands & Camera Utils for Real-Time Palm Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Hidden Vision Camera Feed & Offscreen Processing Canvas -->
+  <video id="camera-feed" playsinline muted autoplay class="offscreen-video"></video>
+  <canvas id="vision-canvas" class="offscreen-canvas"></canvas>
+
+  <!-- Gesture Palm Cursor (Follows visitor's hand or mouse) -->
+  <div id="palm-cursor" class="palm-cursor" aria-hidden="true">
+    <div class="palm-aura"></div>
+    <div class="palm-ring"></div>
+    <!-- Open Palm Icon -->
+    <svg class="palm-icon palm-open" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/>
+    </svg>
+    <!-- Closed Palm / Fist Icon -->
+    <svg class="palm-icon palm-closed hidden" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.5 10c-.83 0-1.5.67-1.5 1.5v-1c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5V10c0-.83-.67-1.5-1.5-1.5S12 9.17 12 10V4.5c0-.83-.67-1.5-1.5-1.5S9 3.67 9 4.5V14.8l-3.32-2.1c-.2-.13-.43-.2-.68-.2-.72 0-1.35.5-1.48 1.21l-.52 2.89L8.6 22h8.9c2.21 0 4-1.79 4-4v-6.5c0-.83-.67-1.5-1.5-1.5z"/>
+    </svg>
+    <span class="palm-label" id="palm-label">Open Palm</span>
+  </div>
+
+  <!-- SCREEN 1: Landing / First Screen -->
+  <main id="scene-container" class="scene-container">
+    <!-- Full-screen Cinematic Background Image with Parallax wrapper -->
+    <div id="bg-parallax" class="bg-parallax">
+      <img src="assets/background.jpg" alt="Ancient civilizations background" id="bg-image" class="bg-image" />
+    </div>
+
+    <!-- Atmospheric Particle Canvas (Golden dust / sand motes) -->
+    <canvas id="particles-canvas" class="particles-canvas"></canvas>
+
+    <!-- Top & Bottom Vignette Overlay for Depth & Readability -->
+    <div class="vignette-overlay"></div>
+    <div class="ambient-glow"></div>
+
+    <!-- Top Logo Placement & Subtitle -->
+    <header class="logo-wrapper" id="logo-wrapper">
+      <img src="assets/logo.png" alt="Time Wanderers" id="main-logo" class="main-logo" />
+      <h2 class="hero-subtitle">Wander. Discover. Uncover.</h2>
+    </header>
+
+    <!-- Bottom Container with Humanoid Step-in Instruction & Prompt -->
+    <footer class="bottom-container" id="bottom-container">
+      <!-- Humanoid Instructional Animated Graphic (Centered above text) -->
+      <div class="instruction-icon-wrapper centered-above" title="Instruction: Step inside the circle on the floor">
+        <svg class="instruction-svg" viewBox="0 0 120 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Floor Perspective Circle -->
+          <g class="floor-target">
+            <ellipse class="floor-base-disc" cx="76" cy="58" rx="28" ry="11" fill="rgba(216, 178, 110, 0.08)" />
+            <ellipse class="floor-base-ring" cx="76" cy="58" rx="28" ry="11" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2.5" />
+            <ellipse class="floor-target-pulse" cx="76" cy="58" rx="28" ry="11" stroke="currentColor" stroke-width="2.2" />
+          </g>
+
+          <!-- Animated Humanoid Figure (Icon-style with volume & rounded shapes) -->
+          <g class="anim-person">
+            <!-- Head -->
+            <circle class="person-head" cx="0" cy="10" r="5.2" fill="currentColor" />
+            
+            <!-- Torso (Humanoid icon rounded pill shape) -->
+            <rect class="person-torso" x="-4.5" y="17" width="9" height="17" rx="4.5" fill="currentColor" />
+            
+            <!-- Arms with natural joint bend -->
+            <path class="person-left-arm" d="M -3.5 19 Q -7 25 -5 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" />
+            <path class="person-right-arm" d="M 3.5 19 Q 7 25 5 32" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" />
+            
+            <!-- Legs with humanoid proportion and rounded stroke -->
+            <path class="person-left-leg" d="M -2.5 32 L -4 44 L -5 56" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <path class="person-right-leg" d="M 2.5 32 L 4 44 L 5 56" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Softly Blinking Call to Action Button -->
+      <button class="cta-step-closer" id="cta-button" aria-label="Step inside circle to begin">
+        <span class="cta-glyph left-glyph">&#10022;</span>
+        <span class="cta-text">step inside the circle to begin</span>
+        <span class="cta-glyph right-glyph">&#10022;</span>
+      </button>
+      <div class="ripple-ring" id="ripple-ring"></div>
+    </footer>
+
+    <!-- Discreet Vision Status Sensor Beacon (Hidden by default, press 'D' for debug HUD) -->
+    <div id="sensor-beacon" class="sensor-beacon hidden" title="Camera Floor Sensor (Press 'D' for debug view)">
+      <span class="sensor-dot"></span>
+      <span class="sensor-label">Floor Vision Ready</span>
+    </div>
+
+    <!-- Audio / Atmosphere Toggle Control (Upper Right) -->
+    <button id="sound-toggle" class="sound-toggle" title="Toggle Atmospheric Audio" aria-label="Toggle Sound">
+      <svg class="sound-icon-off" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+      </svg>
+      <svg class="sound-icon-on hidden" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+      </svg>
+    </button>
+
+    <!-- Ambient Soundscape for First Slide (Landing Screen) -->
+    <audio id="landing-ambient-audio" loop preload="auto">
+      <source src="Indus Valley Soundscape (Take 1).mp3" type="audio/mpeg">
+      <source src="assets/Indus Valley Soundscape (Take 1).mp3" type="audio/mpeg">
+    </audio>
+  </main>
+
+  <!-- SCREEN 2: Interactive Ancient Civilisations Map with Boundary Overlays -->
+  <section id="map-screen" class="map-screen hidden">
+    <!-- Map Background Image -->
+    <div class="map-bg-wrapper">
+      <img src="assets/map.jpg" alt="Ancient Civilisations Map" id="map-image" class="map-image" />
+    </div>
+
+    <!-- Interactive Civilization Boundaries SVG Overlay -->
+    <svg id="map-boundaries-svg" class="map-boundaries-svg" viewBox="0 0 1024 576" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <!-- Golden Glow Filter for Boundaries -->
+        <filter id="boundary-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur2" />
+          <feMerge>
+            <feMergeNode in="blur2" />
+            <feMergeNode in="blur1" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Indus Valley Civilization Boundary (User's exact vector boundary) -->
+      <svg id="boundary-indus-container" x="624" y="88" width="282" height="265" viewBox="0 0 431 405">
+        <path id="boundary-indus" class="civ-boundary indus-boundary" 
+              d="M74.1836 11.399C75.9771 11.399 80.6642 10.6837 83.5658 8.33749C85.007 7.17217 87.1773 7.06412 89.2499 7.42175C93.4832 8.1522 96.9199 11.7458 100.81 12.9324C105.885 14.4804 111.908 5.27599 119.491 1.92731C121.105 1.21455 122.03 0.930291 122.937 1.01428C126.761 1.36808 129.258 4.88585 134.939 8.137C136.961 9.29365 139.196 9.40495 140.911 10.9357C145.338 14.8879 142.631 25.108 144.888 30.6133C145.434 31.9458 145.525 33.0516 145.974 33.8725C148.27 38.0631 155.982 39.2071 159.873 40.5645C163.762 41.9213 168.261 42.9893 171.797 45.5279C175.159 47.9421 179.64 49.8601 183.536 52.0302C185.175 52.9432 186.522 54.2003 187.695 55.5496C190.278 58.5212 187.258 63.3957 185.541 67.6411C184.891 69.2465 185.264 72.0329 186.069 74.3087C189.141 82.9961 198.074 83.9971 202.403 87.6059C211.836 95.4687 229.686 90.1472 231.759 90.8651C234.003 91.6425 235.11 94.2924 236.37 96.0968C240.87 102.542 257.126 97.1968 261.2 99.2585C265.993 101.684 267.616 107.286 269.876 110.548C272.176 113.869 275.733 117.224 281.057 118.595C290.1 120.923 294.698 121.028 298.41 122.293C302.343 123.634 304.636 128.061 306.635 132.128C308.341 135.597 308.082 139.44 308.895 143.236C309.946 148.144 311.149 152.445 311.967 157.584C313.412 166.661 315.841 170.326 319.45 174.214C322.202 177.179 325.411 179.364 328.933 181.802C333.25 184.792 336.779 187.85 340.853 189.036C344.977 190.237 353.002 190.754 359.006 191.922C362.858 192.671 364.966 197.961 367.768 201.396C371.932 206.502 376.876 208.44 380.412 210.705C383.579 212.734 388.071 214.585 392.241 216.844C396.042 218.905 398.919 221.987 404.695 225.69C408.342 228.029 411.024 231.198 414.278 231.843C417.599 232.501 418.437 237.516 419.883 241.133C421.564 245.334 425.654 249.08 427.74 253.674C431.819 262.659 428.559 278.947 425.863 289.085C424.695 293.479 419.369 295.853 415.928 298.933C410.937 303.401 411.772 311.751 408.613 314.829C407.105 316.297 405.448 317.901 404.183 319.792C402 323.055 406.158 327.638 407.96 331.984C409.387 335.427 410.493 338.844 411.395 342.821C411.612 343.776 412.292 344.446 412.479 345.262C413.243 348.596 409.962 352.206 407.077 358.705C405.134 363.082 402.56 367.194 400.301 371.087C397.397 376.09 395.874 379.841 393.259 382.474C391.926 383.817 389.734 384.013 388.201 385.002C384.888 387.138 385.763 392.672 384.581 396.105C383.961 397.909 382.869 399.364 381.338 400.355C379.75 401.385 377.814 401.537 376.012 401.179C371.364 400.256 368.434 392.358 365.083 387.822C363.878 386.192 361.379 386.365 359.396 386.633C353.504 387.43 346.402 394.839 339.369 396.925C327.394 400.477 321.845 396.118 313.446 398.995C306.706 401.304 302.143 400.811 297.448 402.523C294.958 403.431 292.027 403.704 288.962 403.346C283.099 402.662 279.743 397.754 276.221 396.752C271.555 395.424 267.638 390.895 265.378 387.012C262.999 382.924 257.711 381.499 253.194 378.968C244.967 374.359 229.708 375.549 227.088 372.198C224.401 368.761 220.323 366.327 216.616 363.078C212.858 359.784 200.361 359.814 185.4 358.015C176.48 356.942 170.656 356.747 166.497 356.384C158.995 355.729 152.049 350.255 149.331 346.823C146.316 343.013 141.937 340.859 136.787 338.329C133.079 336.507 129.117 335.072 124.232 333.36C120.422 332.025 116.828 330.206 113.661 327.673C109.917 324.679 107.79 320.28 104.091 317.196C101.079 314.685 96.779 315.208 93.3437 313.133C88.6001 310.267 82.3548 307.99 77.3588 305.907C72.6608 303.948 69.1443 300.946 65.8877 298.592C62.1902 295.919 59.2066 292.818 54.785 288.844C52.9764 287.218 49.995 287.21 47.5594 286.04C43.2458 283.967 40.7943 277.104 36.7168 274.482C33.2142 272.229 30.499 266.82 26.3348 263.553C22.6333 260.648 19.4668 257.793 16.221 253.986C10.8271 247.66 6.6464 246.034 4.47084 243.146C1.99017 239.853 1.94307 235.566 1.12487 231.32C0.243798 226.748 4.27306 223.103 5.45431 219.307C6.90795 214.636 8.2503 210.64 11.3145 208.551C15.1826 205.914 17.8195 200.887 18.8219 193.596C20.955 178.083 19.4559 171.832 20.4448 166.926C21.3799 162.286 20.0086 155.381 18.9168 150.762C18.0475 147.085 17.8303 141.304 19.3584 136.224C21.0414 130.629 18.383 125.753 16.3023 121.412C13.9681 116.543 12.9536 109.508 14.7499 104.165C16.6426 98.5353 20.1712 94.1407 20.9894 90.2556C22.0895 85.0317 20.3554 80.2366 21.6179 76.4355C23.1207 71.911 28.2882 68.3049 32.2654 66.5845C35.7683 65.0693 38.2259 61.8026 40.7591 59.0933C43.748 55.8966 47.4375 53.859 51.1384 51.4179C56.798 47.6849 58.4589 44.1055 61.0787 38.8739C63.1291 34.7795 63.3464 28.0611 63.7934 21.1091C67.1286 17.3648 71.095 15.5605 73.723 12.946C74.357 12.1305 75.0722 11.2364 76.8929 9.77341" 
+              filter="url(#boundary-glow)" />
+      </svg>
+
+      <!-- Mesopotamian Civilization Boundary (Center contour) -->
+      <path id="boundary-meso" class="civ-boundary meso-boundary" 
+            d="M 430 155 C 480 155, 530 220, 575 320 C 600 380, 580 440, 530 480 C 470 500, 410 460, 365 380 C 330 300, 350 200, 430 155 Z" 
+            filter="url(#boundary-glow)" />
+
+      <!-- Egyptian Civilization Boundary (Left contour) -->
+      <path id="boundary-egypt" class="civ-boundary egypt-boundary" 
+            d="M 215 305 C 245 340, 255 420, 270 510 C 280 580, 245 640, 190 640 C 130 640, 95 540, 100 430 C 105 350, 155 310, 215 305 Z" 
+            filter="url(#boundary-glow)" />
+    </svg>
+
+    <!-- Subtle Gestural Hint at Bottom Center -->
+    <div id="gesture-hint" class="gesture-hint">
+      <span class="gesture-hint-icon">&#9995;</span>
+      <span>Hover over a civilization & close your palm to select</span>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: Full-Screen Expedition Video Player & Physical Walkthrough -->
+  <section id="video-screen" class="video-screen hidden">
+    <!-- Video Player Container -->
+    <div class="video-container">
+      <video id="expedition-video" class="expedition-video" playsinline preload="auto">
+        <source src="assets/walking.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Blowing Dust Off Sculpture Video -->
+      <video id="dust-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="assets/blowing_dust.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Museum UI Animation Video (Dancing Girl Museum Spotlight & Inscription) -->
+      <video id="museum-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="assets/Create_museum_UI_animation_1080p_20260916220242.mp4" type="video/mp4">
+        <source src="Create_museum_UI_animation_1080p_20260916220242.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Time Travel to Ancient City Video (Forearm Rolling Forward: Present Day -> 2500 BCE) -->
+      <video id="timetravel-video" class="expedition-video hidden" playsinline preload="auto" muted>
+        <source src="assets/Time_travel_to_ancient_city_20260916225041.mp4" type="video/mp4">
+        <source src="Time_travel_to_ancient_city_20260916225041.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Time Travel Reverse Video (Forearm Rolling Anticlockwise: 2500 BCE -> Present Day) -->
+      <video id="timetravel-video-reverse" class="expedition-video hidden" playsinline preload="auto" muted>
+        <source src="assets/Time_travel_reversed.mp4" type="video/mp4">
+        <source src="Time_travel_reversed.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Dancing Girl Info Video (Plays after dust clearing, shows artifact information) -->
+      <video id="dancing-girl-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="dancing_girl.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Last Video (Plays after time travel journey completes, then resets to landing) -->
+      <video id="last-video" class="expedition-video hidden" playsinline preload="auto">
+        <source src="last_video.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+
+      <!-- Video Placeholder Notice if file not found -->
+      <div id="video-placeholder" class="video-placeholder hidden">
+        <div class="placeholder-content">
+          <div class="placeholder-icon">&#127916;</div>
+          <h2 class="placeholder-title">Indus Valley Civilisation</h2>
+          <p class="placeholder-desc">Video file: <code>assets/walking.mp4</code></p>
+          <p class="placeholder-sub">Ready to explore the ancient roads of Mohenjo-daro.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Walking Instruction Overlay (Animated Footprints) -->
+    <div id="walking-hud" class="walking-instruction-overlay">
+      <div class="footprints-container">
+        <svg class="footprints-svg" viewBox="-5 -10 241 305" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Left foot -->
+          <g class="foot-step foot-left" fill="currentColor">
+            <path d="M90.4513 71.9196C90.6313 80.3496 87.6313 87.6696 83.3513 94.7296C80.1613 99.9896 76.2813 105.32 74.9613 111.14C71.8613 124.81 75.4713 137.63 83.0813 149.3C84.9613 152.18 87.1813 154.84 89.0513 157.73C95.9513 168.43 98.5713 180.03 94.7913 192.36C89.6113 209.26 68.7913 215.14 55.2113 203.85C50.2213 199.7 46.9313 194.41 44.7413 188.39C34.2913 159.76 23.8513 131.14 13.4713 102.48C12.0313 98.5196 10.5713 94.4796 9.87127 90.3496C8.67127 83.2596 10.9813 76.8796 15.4813 71.4096C17.7813 68.6196 20.3213 65.8996 23.1913 63.7196C34.3213 55.2596 46.5613 48.7196 60.0013 44.8296C64.2113 43.6096 69.0313 43.4396 73.3913 44.0596C82.0613 45.2996 87.8013 52.3196 89.4513 62.5196C89.9413 65.6396 90.1213 68.7896 90.4513 71.9196Z"/>
+            <path d="M87.0505 16.2501C86.7105 24.5201 85.2605 30.3601 80.2905 34.6701C75.9005 38.4701 70.1705 38.4001 65.7405 34.7301C58.1205 28.4301 56.2705 13.8701 62.0705 5.84012C67.9705 -2.32988 79.1005 -1.89988 84.0005 6.99012C85.8305 10.3101 86.4405 14.3201 87.0505 16.2501Z"/>
+            <path d="M54.4203 28.311C53.3703 31.641 52.7303 34.841 51.3603 37.691C49.9703 40.571 47.9203 40.781 45.2603 39.011C40.1103 35.581 36.5503 25.411 38.3603 19.431C39.2103 16.621 41.0003 14.801 43.8903 14.351C46.9203 13.881 49.5703 15.021 50.8203 17.741C52.3403 21.071 53.2203 24.691 54.4203 28.311Z"/>
+            <path d="M21.5107 34.4799C21.4707 30.1799 22.7807 28.0599 25.5107 27.0799C28.1307 26.1399 30.7107 26.9999 32.6007 29.8399C35.7307 34.5499 36.8707 39.7599 35.5307 45.3199C34.5307 49.4399 31.8907 50.3099 28.5607 47.6699C24.0307 44.0999 22.1107 39.1599 21.5107 34.4799Z"/>
+            <path d="M23.4294 54.0704C22.7494 55.1404 22.0594 57.5804 20.6794 58.0704C18.8294 58.7204 15.9394 58.5704 14.3994 57.4904C10.4194 54.6904 8.57942 50.4004 8.97942 45.4704C9.31942 41.2104 14.1094 39.1204 17.5294 41.6904C21.3294 44.5404 22.5394 48.7704 23.4294 54.0704Z"/>
+            <path d="M12.0503 66.2397C12.0403 69.0797 10.2603 70.8597 7.48032 70.8197C3.67032 70.7597 -0.0396794 66.5897 0.000320556 62.4197C0.0303206 59.6397 2.26032 57.4097 5.05032 57.3697C8.39032 57.3097 12.0703 61.9797 12.0503 66.2397Z"/>
+          </g>
+          <!-- Right foot -->
+          <g class="foot-step foot-right" fill="currentColor">
+            <path d="M221.891 164.781C220.961 168.371 220.321 172.061 219.061 175.541C208.951 203.451 198.781 231.331 188.501 259.181C186.541 264.501 184.581 269.961 181.661 274.761C177.151 282.191 170.301 286.851 161.351 287.211C145.921 287.821 134.831 276.701 134.581 260.531C134.411 250.041 137.531 240.561 144.061 232.291C150.011 224.761 154.191 216.491 156.081 206.961C158.291 195.781 157.011 185.511 150.191 176.081C145.911 170.161 142.131 163.881 141.191 156.421C140.181 148.411 140.441 140.471 143.751 132.941C147.141 125.231 153.201 121.191 161.601 121.231C165.191 121.251 168.941 121.661 172.331 122.771C185.031 126.941 196.851 132.971 207.491 141.081C213.941 145.991 219.191 151.951 220.901 160.261C221.201 161.701 221.291 163.171 221.481 164.631C221.621 164.681 221.751 164.731 221.891 164.781Z"/>
+            <path d="M172.941 95.2011C172.221 100.641 170.921 105.491 167.741 109.751C162.361 116.951 153.331 116.861 148.151 109.541C143.161 102.501 142.671 91.4711 147.041 84.3711C152.671 75.2211 164.781 75.4011 169.751 84.9411C171.371 88.0711 171.901 91.7711 172.941 95.2011Z"/>
+            <path d="M193.001 101.859C192.721 106.579 191.091 111.839 186.681 115.849C183.451 118.779 180.751 118.289 178.991 114.329C176.171 107.999 176.661 101.659 179.921 95.6295C181.721 92.3095 184.861 91.2095 188.181 92.2395C191.401 93.2495 193.041 96.1595 193.001 101.859Z"/>
+            <path d="M209.471 111.929C208.901 116.849 206.921 121.869 202.221 125.409C198.941 127.879 196.441 126.999 195.471 122.989C194.131 117.449 195.201 112.239 198.341 107.519C200.191 104.749 202.721 103.829 205.441 104.659C208.051 105.459 209.511 107.809 209.471 111.929Z"/>
+            <path d="M222.871 124.91C221.191 128.04 219.801 131.37 217.751 134.23C215.981 136.7 212.551 137.19 210.311 135.85C207.731 134.31 207.211 131.67 208.081 129.15C209.151 126.06 210.571 123.01 212.371 120.29C213.741 118.22 216.141 117.59 218.681 118.63C221.341 119.72 222.241 121.81 222.121 124.51C222.371 124.65 222.621 124.78 222.871 124.91Z"/>
+            <path d="M223.49 148.37C220.6 148.41 218.95 146.77 218.94 143.84C218.92 139.83 222.49 135.08 225.65 134.92C228.4 134.78 230.96 137.25 230.98 140.05C231.02 144.36 227.45 148.31 223.49 148.37Z"/>
+          </g>
+        </svg>
+      </div>
+      <span class="walk-instruction-text" id="walking-status-text">March in place to walk</span>
+      <span class="walk-instruction-key">(or press ↑ / W key)</span>
+    </div>
+
+    <!-- Discovery Sighting & Dual-Hand Zoom Gesture (Floating over video, no card blocking view) -->
+    <div id="zoom-prompt" class="zoom-prompt hidden" title="Spread hands apart to zoom in (or tap / press 'Z')">
+      <div class="zoom-gesture-diagram" id="zoom-gesture-diagram">
+        <div class="zoom-hand left-hand">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/></svg>
+        </div>
+        <div class="zoom-arrows">
+          <span class="arrow-left">&larr;</span>
+          <span class="zoom-text-hint">SPREAD HANDS TO ZOOM</span>
+          <span class="arrow-right">&rarr;</span>
+        </div>
+        <div class="zoom-hand right-hand">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C11.45 2 11 2.45 11 3V11H10.5C9.95 11 9.5 11.45 9.5 12V4C9.5 3.45 9.05 3 8.5 3C7.95 3 7.5 3.45 7.5 4V13H7C6.45 13 6 13.45 6 14V6C6 5.45 5.55 5 5 5C4.45 5 4 5.45 4 6V17C4 20.87 7.13 24 11 24C14.87 24 18 20.87 18 17V7C18 6.45 17.55 6 17 6C16.45 6 16 6.45 16 7V13H15.5C14.95 13 14.5 12.55 14.5 12V3C14.5 2.45 14.05 2 13.5 2C12.95 2 12.5 2.45 12.5 3V11H12V2Z"/></svg>
+        </div>
+      </div>
+      <button id="zoom-manual-btn" class="sr-only" aria-label="Tap to zoom in"></button>
+    </div>
+
+    <!-- Dust-Blowing Breath & Wipe Interaction (Floating gesture & small line, no card) -->
+    <div id="blow-instruction" class="blow-instruction hidden">
+      <div class="blow-gesture-content" id="blow-gesture-content">
+        <!-- Blowing Person Illustration with Wind Animation -->
+        <div class="blow-gesture-diagram">
+          <svg class="blow-person-svg" viewBox="0 0 700 739" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <clipPath id="clip0_blow">
+                <rect width="592.44" height="738.3" fill="white"/>
+              </clipPath>
+              <!-- Wind stream gradient -->
+              <linearGradient id="windGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
+                <stop offset="60%" stop-color="#8be4ff" stop-opacity="0.5"/>
+                <stop offset="100%" stop-color="#8be4ff" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="windGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="white" stop-opacity="0.6"/>
+                <stop offset="50%" stop-color="#a8e8ff" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#a8e8ff" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Person illustration -->
+            <g clip-path="url(#clip0_blow)">
+              <path d="M142.369 679.099C134.019 695.569 126.479 712.449 118.869 729.299H219.629C224.629 721.149 229.419 713.379 234.419 705.759C239.849 697.499 247.929 692.229 257.219 689.149C270.719 684.669 284.209 680.059 297.949 676.409C329.469 668.029 361.119 660.139 392.759 652.199C401.839 649.919 410.949 647.199 420.199 646.309C443.969 644.009 467.469 640.739 490.029 632.529C504.219 627.359 518.479 622.379 532.549 616.899C545.039 612.029 555.719 604.229 564.929 594.539C570.619 588.559 569.569 584.169 561.819 581.199C558.959 580.109 555.749 579.269 552.739 579.369C539.539 579.819 526.979 582.419 515.849 590.309C512.129 592.949 507.649 595.099 503.209 596.069C487.279 599.559 471.239 602.499 455.209 605.529C450.799 606.359 446.109 607.879 441.889 607.129C428.259 604.709 414.809 604.939 401.589 608.629C393.999 610.749 388.169 608.759 382.449 603.509C385.599 600.739 388.639 597.899 391.869 595.289C395.279 592.529 396.059 589.179 395.049 585.059C393.079 577.069 384.099 570.419 374.649 569.949C361.139 569.269 348.359 572.509 336.159 577.789C320.839 584.409 305.199 588.999 288.349 589.069C272.689 589.129 257.039 589.459 241.389 589.849C230.049 590.129 219.559 592.929 210.109 599.729C180.999 620.639 158.509 647.279 142.369 679.099Z" stroke="white" stroke-width="18" stroke-miterlimit="10"/>
+              <path d="M211.339 297.15C155.329 356.89 154.809 358.85 185.199 395.34C175.709 411.93 167.219 429.79 181.339 449.3C182.659 451.12 178.699 458.45 175.529 461.51C162.519 474.11 159.899 489.23 161.619 506.43C164.209 532.37 160.089 537.42 132.789 538.29C87.1392 539.75 46.4692 553.63 11.4292 583.19C7.63924 586.39 2.74924 589.39 0.989236 593.58C-0.860764 597.96 0.449236 603.68 0.379236 608.81C5.43924 608.57 12.4092 610.42 15.2792 607.79C51.7092 574.41 95.0392 561.3 143.639 558.62C175.169 556.88 187.139 539.81 183.069 508.09C181.039 492.26 184.649 480.44 197.229 470.77C208.069 462.44 209.799 452.28 200.919 441.3C192.489 430.88 193.139 420.93 200.909 410.32C209.809 398.17 208.129 387.79 196.949 376.62C181.069 360.75 181.199 349.32 200.539 336.54C245.329 306.93 239.589 286.3 197.989 256.93C183.719 246.86 171.219 233.42 160.339 219.61C145.789 201.16 140.309 180.37 146.329 155.78C160.919 96.17 139.659 47.02 96.9192 5.95C92.4392 1.62 83.5492 1.87 76.6992 0C78.7892 7.14 78.7392 16.36 83.3192 21.1C121.029 60.06 138.239 103.87 124.419 158.74C115.389 194.57 132.059 224.13 156.759 248.75C173.699 265.63 192.539 280.61 211.339 297.15Z" fill="white"/>
+              <path d="M346.989 432.78C318.559 432.78 290.119 432.17 261.729 433.22C254.869 433.47 248.219 439.23 241.469 442.45C248.529 446.18 255.549 453.02 262.669 453.14C316.659 454.05 370.679 454.02 424.689 453.44C443.229 453.24 458.199 458.16 461.379 477.72C464.519 497.08 453.309 507.5 434.439 511.7C430.179 512.65 427.349 520.04 423.859 524.47C429.119 526.82 434.439 531.3 439.629 531.15C463.209 530.48 483.849 506.66 483.469 481.95C483.079 456.08 462.909 434.12 436.529 433.22C406.719 432.2 376.849 432.99 346.999 432.99C346.989 432.91 346.989 432.84 346.989 432.78Z" fill="white"/>
+              <path d="M411.659 412.45C441.459 412.45 471.289 413.28 501.049 412.19C525.369 411.3 543.169 393.42 546.609 369.4C549.869 346.66 535.759 322.77 513.189 316.54C505.769 314.49 491.319 315.86 489.419 319.97C483.329 333.15 496.119 332.68 504.679 335.42C519.069 340.04 527.749 350.78 525.809 365.91C523.639 382.77 512.539 391.87 494.889 391.87C442.379 391.86 389.869 391.9 337.359 391.93C331.679 391.93 325.439 390.51 320.479 392.42C314.969 394.54 310.639 399.71 305.789 403.55C310.569 406.58 315.279 412.12 320.129 412.24C350.619 413.04 381.149 412.65 411.659 412.65C411.659 412.59 411.659 412.52 411.659 412.45Z" fill="white"/>
+              <path d="M148.159 423.47C147.629 381.81 131.899 351.44 99.6893 330.65C94.8693 327.54 86.3493 330.18 79.5393 330.15C82.2893 335.8 83.5693 343.28 87.9993 346.84C144.669 392.35 140.189 461.32 78.2793 497.8C73.0893 500.86 70.8693 508.96 67.2793 514.72C74.1693 515.12 82.3593 518.15 87.7493 515.5C126.999 496.17 146.329 463.59 148.159 423.47Z" fill="white"/>
+              <path d="M533.499 434.1C525.679 434.1 517.569 432.84 510.159 434.58C505.819 435.6 502.589 441.38 498.859 445.03C502.829 448.21 506.569 453.7 510.809 454.12C523.479 455.39 536.779 452.74 548.999 455.41C557.109 457.19 568.299 464.47 569.789 471.14C571.129 477.14 561.359 485.85 555.999 493C552.359 497.86 547.879 502.08 543.779 506.59C550.379 508.73 557.799 513.95 563.419 512.45C580.559 507.85 591.329 495.95 592.329 477.29C593.359 458.13 585.449 443.59 567.039 437.48C556.519 433.99 544.829 434.05 533.669 432.51C533.619 433.04 533.559 433.57 533.499 434.1Z" fill="white"/>
+              <path d="M257.819 386.23C250.559 393.78 246.019 398.5 241.469 403.23C246.809 406.37 252.279 412.18 257.459 411.94C263.589 411.66 269.479 406.15 275.479 402.91C270.609 398.31 265.739 393.71 257.819 386.23Z" fill="white"/>
+            </g>
+            <!-- Animated wind streams from mouth area -->
+            <g class="blow-wind-group">
+              <!-- Wind stream lines originating from near the mouth/face top area -->
+              <line class="wind-stream ws-1" x1="220" y1="285" x2="420" y2="260" stroke="url(#windGrad)" stroke-width="4" stroke-linecap="round"/>
+              <line class="wind-stream ws-2" x1="225" y1="300" x2="450" y2="290" stroke="url(#windGrad)" stroke-width="3" stroke-linecap="round"/>
+              <line class="wind-stream ws-3" x1="220" y1="315" x2="430" y2="320" stroke="url(#windGrad2)" stroke-width="3.5" stroke-linecap="round"/>
+              <line class="wind-stream ws-4" x1="230" y1="330" x2="460" y2="345" stroke="url(#windGrad2)" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- Small wind particles / dots -->
+              <circle class="wind-particle wp-1" cx="380" cy="270" r="3" fill="white" opacity="0.6"/>
+              <circle class="wind-particle wp-2" cx="420" cy="300" r="2.5" fill="#8be4ff" opacity="0.5"/>
+              <circle class="wind-particle wp-3" cx="400" cy="330" r="2" fill="white" opacity="0.4"/>
+              <circle class="wind-particle wp-4" cx="450" cy="275" r="2" fill="#8be4ff" opacity="0.5"/>
+              <circle class="wind-particle wp-5" cx="470" cy="310" r="3" fill="white" opacity="0.3"/>
+            </g>
+          </svg>
+        </div>
+
+        <span class="blow-wipe-label" id="blow-status-text">Blow to clear dust</span>
+        <button id="blow-manual-btn" class="sr-only" aria-label="Hold to blow air"></button>
+      </div>
+    </div>
+
+    <!-- Museum UI Action Bar (Subtle floating actions shown after museum animation) -->
+    <div id="museum-actions" class="museum-actions hidden">
+      <button id="museum-travel-btn" class="museum-act-btn primary" title="Enter Time Travel by Rolling Forearms">&#x23F3; Time Travel Portal</button>
+      <button id="museum-replay-btn" class="museum-act-btn" title="Replay museum presentation">&#x21bb; Replay Video</button>
+      <button id="museum-blow-btn" class="museum-act-btn" title="Wipe off dust again">&#x1F4A8; Blow Again</button>
+      <button id="museum-walk-btn" class="museum-act-btn" title="Walk through ruins again">&#x1F6B6; Walk Again</button>
+      <button id="museum-map-btn" class="museum-act-btn" title="Return to Ancient Map">&larr; Return to Map</button>
+    </div>
+
+    <!-- Floating Forearm Rolling Gesture Prompt (No card, pure floating gesture) -->
+    <div id="timetravel-gesture" class="timetravel-gesture hidden" title="Roll forearms over each other to travel in time">
+      <div class="tt-gesture-diagram" id="tt-gesture-diagram">
+        <svg class="tt-svg" id="tt-svg" viewBox="0 0 260 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <!-- Gradients for Forearm Holograms -->
+            <linearGradient id="armGradTop" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="white" stop-opacity="0.18" />
+              <stop offset="45%" stop-color="white" stop-opacity="0.32" />
+              <stop offset="85%" stop-color="white" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="white" stop-opacity="0.55" />
+            </linearGradient>
+            <linearGradient id="armGradBottom" x1="100%" y1="0%" x2="0%" y2="0%">
+              <stop offset="0%" stop-color="white" stop-opacity="0.18" />
+              <stop offset="45%" stop-color="white" stop-opacity="0.32" />
+              <stop offset="85%" stop-color="white" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="white" stop-opacity="0.55" />
+            </linearGradient>
+          </defs>
+
+          <!-- Dashed Elliptical Orbit & Directional Indicator Arrows -->
+          <g class="tt-orbit-group">
+            <ellipse class="tt-orbit" cx="130" cy="90" rx="108" ry="68" stroke="white" stroke-width="2.6" stroke-dasharray="10 6" opacity="0.88" />
+            <!-- Right Arrow (Clockwise Apex) -->
+            <polygon points="232,80 246,90 232,100" fill="white" class="tt-arrow-cw" />
+            <!-- Left Arrow (Counter-Apex) -->
+            <polygon points="28,100 14,90 28,80" fill="white" class="tt-arrow-ccw" />
+          </g>
+
+          <!-- Top Arm (Points Right: Forearm, Wrist, Palm, Thumb, Articulated Fingers) -->
+          <g class="tt-arm tt-arm-top" id="tt-arm-top">
+            <!-- Main Silhouette -->
+            <path d="M 34,52 
+                     C 26,54 26,62 34,65 
+                     C 58,71 86,72 116,68 
+                     L 132,65 
+                     C 138,66 146,68 156,67 
+                     C 166,66 172,64 174,62 
+                     C 174,59 168,58 158,59 
+                     C 168,58 176,57 178,54 
+                     C 178,51 172,50 162,51 
+                     C 172,50 180,49 182,46 
+                     C 181,43 175,42 165,43 
+                     C 173,42 176,39 175,37 
+                     C 173,34 167,35 158,37 
+                     C 152,38 146,35 140,32 
+                     C 134,30 128,32 124,37 
+                     L 120,41 
+                     C 98,38 72,39 48,44 
+                     C 38,46 34,49 34,52 Z" 
+                  fill="url(#armGradTop)" stroke="white" stroke-width="2.4" stroke-linejoin="round" />
+
+            <!-- Wrist Line -->
+            <path d="M 120,41 C 124,49 126,57 122,66" stroke="rgba(255,255,255,0.85)" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+            
+            <!-- Forearm Muscle Highlight Line -->
+            <path d="M 48,54 C 74,53 100,51 116,53" stroke="white" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.6" />
+
+            <!-- Palm Crease (Thenar Life Line) -->
+            <path d="M 132,45 C 136,51 138,57 146,62" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" opacity="0.9" />
+
+            <!-- Hand Knuckle Creases & Finger Dividers -->
+            <path d="M 144,40 L 165,43" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 146,47 L 168,50" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 144,54 L 166,57" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            
+            <!-- Thumb Crease -->
+            <path d="M 134,34 C 138,37 141,40 138,44" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" stroke-linecap="round" opacity="0.85" />
+          </g>
+
+          <!-- Bottom Arm (Points Left: Forearm, Wrist, Palm, Thumb, Articulated Fingers) -->
+          <g class="tt-arm tt-arm-bottom" id="tt-arm-bottom">
+            <!-- Main Silhouette -->
+            <path d="M 226,128 
+                     C 234,126 234,118 226,115 
+                     C 202,109 174,108 144,112 
+                     L 128,115 
+                     C 122,114 114,112 104,113 
+                     C 94,114 88,116 86,118 
+                     C 86,121 92,122 102,121 
+                     C 92,122 84,123 82,126 
+                     C 82,129 88,130 98,129 
+                     C 88,130 80,131 78,134 
+                     C 79,137 85,138 95,137 
+                     C 87,138 84,141 85,143 
+                     C 87,146 93,145 102,143 
+                     C 108,142 114,145 120,148 
+                     C 126,150 132,148 136,143 
+                     L 140,139 
+                     C 162,142 188,141 212,136 
+                     C 222,134 226,131 226,128 Z" 
+                  fill="url(#armGradBottom)" stroke="white" stroke-width="2.4" stroke-linejoin="round" />
+
+            <!-- Wrist Line -->
+            <path d="M 140,139 C 136,131 134,123 138,114" stroke="rgba(255,255,255,0.85)" stroke-width="1.8" stroke-linecap="round" opacity="0.85" />
+            
+            <!-- Forearm Muscle Highlight Line -->
+            <path d="M 212,126 C 186,127 160,129 144,127" stroke="white" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.6" />
+
+            <!-- Palm Crease (Thenar Life Line) -->
+            <path d="M 128,135 C 124,129 122,123 114,118" stroke="rgba(255,255,255,0.9)" stroke-width="1.8" stroke-linecap="round" opacity="0.9" />
+
+            <!-- Hand Knuckle Creases & Finger Dividers -->
+            <path d="M 116,140 L 95,137" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 114,133 L 92,130" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            <path d="M 116,126 L 94,123" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" opacity="0.8" />
+            
+            <!-- Thumb Crease -->
+            <path d="M 126,146 C 122,143 119,140 122,136" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" stroke-linecap="round" opacity="0.85" />
+          </g>
+        </svg>
+
+      </div>
+    </div>
+
+    <!-- Back to Map Button -->
+    <button id="video-back-btn" class="video-back-btn" title="Back to Ancient Map" aria-label="Return to Map">
+      <span class="back-arrow">&#8592;</span>
+      <span>Back to Map</span>
+    </button>
+  </section>
+
+  <!-- Flash Warp Overlay for Cinematic Transition -->
+  <div id="warp-overlay" class="warp-overlay"></div>
+
+  <!-- Debug Vision Modal (Press 'D' or click sensor beacon) -->
+  <aside id="debug-modal" class="debug-modal hidden">
+    <div class="debug-header">
+      <span>Floor Vision Camera Debug (Press 'D' to close)</span>
+      <button id="debug-close-btn">&times;</button>
+    </div>
+    <div class="debug-body">
+      <!-- Camera Device Selector -->
+      <div class="debug-device-row">
+        <label for="debug-cam-select">Camera Device:</label>
+        <select id="debug-cam-select" class="debug-cam-select">
+          <option value="">Auto-Detecting Cameras...</option>
+        </select>
+      </div>
+
+      <canvas id="debug-canvas" width="320" height="240"></canvas>
+      <div class="debug-stats">
+        <div><span>Camera Status:</span> <strong id="debug-cam-status">Initializing...</strong></div>
+        <div><span>White Circle Found:</span> <strong id="debug-circle-found">Searching...</strong></div>
+        <div><span>Circle Center:</span> <span id="debug-circle-center">-</span></div>
+        <div><span>Occupancy Delta:</span> <strong id="debug-occupancy">0%</strong></div>
+        <div class="meter-bar"><div id="debug-meter-fill" class="meter-fill"></div></div>
+      </div>
+      <div class="debug-actions">
+        <button id="debug-retry-btn" class="debug-action-btn">Restart Camera</button>
+        <button id="debug-trigger-btn" class="debug-action-btn">Simulate Step</button>
+        <button id="debug-recalibrate-btn" class="debug-action-btn">Recalibrate</button>
+      </div>
+    </div>
+  </aside>
+
+  <script src="script.js"></script>
+</body>
+</html>
